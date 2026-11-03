@@ -84,8 +84,10 @@ nav.top ul a:hover{opacity:1;color:var(--signal)}
 .hero .ghost span{font:900 clamp(140px,26vw,420px)/.8 var(--display);text-transform:uppercase;color:transparent;-webkit-text-stroke:1px rgba(236,230,218,.09);white-space:nowrap;margin-left:-1vw;transform:translateY(-14%)}
 .hero .content{position:relative;width:100%;padding:130px 0 clamp(30px,6vh,72px)}
 .rec{display:inline-flex;align-items:center;gap:10px;color:var(--muted)}
-.rec i{width:9px;height:9px;border-radius:50%;background:var(--signal);box-shadow:0 0 0 0 rgba(255,90,31,.6);animation:rec 1.8s infinite}
-@keyframes rec{70%{box-shadow:0 0 0 10px rgba(255,90,31,0)}100%{box-shadow:0 0 0 0 rgba(255,90,31,0)}}
+.rec i{position:relative;width:9px;height:9px;border-radius:50%;background:var(--signal)}
+.rec i::after{content:"";position:absolute;inset:0;border-radius:50%;background:var(--signal);animation:rec 1.8s ease-out 3}
+/* finite on purpose: an endless pulse over the hero video forced full-hero repaints on older GPUs */
+@keyframes rec{from{transform:scale(1);opacity:.6}to{transform:scale(3.2);opacity:0}}
 h1{font:900 clamp(58px,min(11vw,15.5vh),176px)/.84 var(--display);text-transform:uppercase;letter-spacing:-.005em;margin:18px 0 0;max-width:9ch}
 h1 em{font-style:normal;color:var(--signal)}
 h1 sup{font:500 .12em/1 var(--mono);vertical-align:top;position:relative;top:.6em;margin-left:.2em;color:var(--muted)}
@@ -93,7 +95,7 @@ h1 sup{font:500 .12em/1 var(--mono);vertical-align:top;position:relative;top:.6e
 .picker{margin-top:clamp(18px,3.2vh,30px);display:flex;flex-wrap:wrap;gap:10px;max-width:560px}
 .picker label{flex-basis:100%;color:var(--muted)}
 .select{position:relative;flex:1 1 240px}
-.select select{appearance:none;-webkit-appearance:none;width:100%;height:58px;padding:0 48px 0 18px;border-radius:6px;border:1px solid rgba(236,230,218,.28);background:rgba(20,20,18,.72);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);color:var(--bone);font:500 18px var(--body);cursor:pointer}
+.select select{appearance:none;-webkit-appearance:none;width:100%;height:58px;padding:0 48px 0 18px;border-radius:6px;border:1px solid rgba(236,230,218,.28);background:rgba(20,20,18,.9);color:var(--bone);font:500 18px var(--body);cursor:pointer}
 .select::after{content:"";position:absolute;right:20px;top:50%;width:9px;height:9px;border-right:2px solid var(--signal);border-bottom:2px solid var(--signal);transform:translateY(-70%) rotate(45deg);pointer-events:none}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:12px;height:58px;padding:0 26px;border:0;border-radius:6px;background:var(--signal);color:var(--ink);font:800 20px/1 var(--display);letter-spacing:.06em;text-transform:uppercase;text-decoration:none;cursor:pointer;transition:background .2s,transform .2s}
 .btn:hover{background:#FF7240}
@@ -547,18 +549,20 @@ footer .legal{margin-top:46px;color:#77726A;font-size:13px;line-height:1.6;max-w
   new IntersectionObserver(([e]) => { if (RM.matches) return; e.isIntersecting ? v.play().catch(()=>{}) : v.pause(); }).observe(v);
 
   // transform-only parallax, rAF throttled
-  const layers = [...document.querySelectorAll('[data-depth]')].map(el => ({el, d:+el.dataset.depth, host: el.closest('section,header')}));
+  const layers = [...document.querySelectorAll('[data-depth]')].map(el => ({el, d:+el.dataset.depth, host: el.closest('section,header'), y: null}));
+  const hosts = [...new Set(layers.map(L => L.host))];
   let ticking = false;
   const update = () => {
     ticking = false;
     if (RM.matches) return;
     const vh = innerHeight;
-    for (const L of layers) {
-      const r = L.host.getBoundingClientRect();
+    const rects = new Map(hosts.map(h => [h, h.getBoundingClientRect()]));   // all reads first
+    for (const L of layers) {                                                // then all writes
+      const r = rects.get(L.host);
       if (r.bottom < -100 || r.top > vh + 100) continue;
       const center = r.top + r.height/2 - vh/2;           // 0 when section centered
-      const y = L.host.tagName === 'HEADER' ? -r.top * L.d : center * L.d;
-      L.el.style.transform = `translate3d(0,${y.toFixed(1)}px,0)`;
+      const y = (L.host.tagName === 'HEADER' ? -r.top * L.d : center * L.d).toFixed(1);
+      if (y !== L.y) { L.y = y; L.el.style.transform = `translate3d(0,${y}px,0)`; }
     }
   };
   addEventListener('scroll', () => { if (!ticking) { ticking = true; requestAnimationFrame(update); } }, {passive:true});
